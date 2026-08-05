@@ -37,5 +37,6 @@ describe("approval transitions", () => {
 		expect(transitionApproval("Refine plan").effect).toBe("open_refinement");
 		expect(transitionApproval("Edit plan").effect).toBe("open_editor");
 		expect(transitionApproval("Execute plan").effect).toBe("start_execution");
+		expect(transitionApproval("Start new session").effect).toBe("start_new_session");
 	});
 });

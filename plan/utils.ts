@@ -179,12 +179,18 @@ const DESTRUCTIVE_COMMAND_PREFIXES = [
 
 export function isDestructiveCommand(command: string): boolean {
 	const normalized = normalizeCommand(stripGitPathFlag(command));
+	// Read-only inspection subcommands must remain available for explicit manual
+	// allowlisting (e.g. `git stash list`), while mutating stash operations stay
+	// destructive.
+	if (/^git\s+stash\s+(?:list|show)(?:\s|$)/i.test(normalized)) return false;
 	return DESTRUCTIVE_COMMAND_PREFIXES.some((prefix) => {
 		return normalized === prefix || normalized.startsWith(`${prefix} `);
 	});
 }
 
-const UNSAFE_SHELL_PATTERN = /(?:[<>`()]|\$\()/;
+// Fail closed on shell syntax and command forms that can execute arbitrary code.
+const UNSAFE_SHELL_PATTERN = /(?:[<>`() ]?\$\(|[<>`()]|\b(?:eval|exec|source|bash|sh|zsh|fish|powershell|pwsh)\b|\b(?:system|getline)\s*\(|\b(?:-exec|--exec|-execdir|--checkpoint-action|--checkpoint)\b)/i;
+const UNSAFE_EMBEDDED_EXECUTION_PATTERN = /\b(?:system|getline)\s*\(|\b(?:-exec|--exec|-execdir|--checkpoint-action|--checkpoint)\b/i;
 
 function normalizeCommand(command: string): string {
 	return command.trim().replace(/\s+/g, " ");
@@ -299,7 +305,7 @@ function isAllowedSegment(command: string, allowlist: CommandAllowlist): boolean
 export function isReadOnlyCommand(command: string, allowlist: CommandAllowlist = {}): boolean {
 	const normalized = normalizeCommand(stripHarmlessRedirection(command));
 	if (!normalized) return false;
-	if (UNSAFE_SHELL_PATTERN.test(stripQuotedContent(normalized))) return false;
+	if (UNSAFE_SHELL_PATTERN.test(stripQuotedContent(normalized)) || UNSAFE_EMBEDDED_EXECUTION_PATTERN.test(normalized)) return false;
 
 	const segments = splitCommandSegments(normalized);
 	return segments.length > 0 && segments.every((segment) => isAllowedSegment(segment, allowlist));

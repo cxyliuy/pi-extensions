@@ -31,13 +31,12 @@ import { validateQuestionnaire } from './validate.js';
 
 const ERROR_NO_UI = 'Error: UI not available (running in non-interactive mode)';
 
-const DEFAULT_PROMPT_SNIPPET = `Ask the user up to ${MAX_QUESTIONS} structured questions (${MIN_OPTIONS}-${MAX_OPTIONS} options each) when requirements are ambiguous`;
+const DEFAULT_PROMPT_SNIPPET = `Present 1-${MAX_QUESTIONS} structured questions (${MIN_OPTIONS}-${MAX_OPTIONS} options each) and collect the user's answers`;
 
 const DEFAULT_PROMPT_GUIDELINES: string[] = [
-	`Use ask_user_question whenever the user's request is underspecified and you cannot proceed without concrete decisions — up to ${MAX_QUESTIONS} questions per invocation.`,
-	`Each question MUST have ${MIN_OPTIONS}-${MAX_OPTIONS} options. Every option requires a concise label (1-5 words) and a description of the choice or its trade-off. The user can type a custom answer via the automatically appended "Type something." row, or press Esc to abandon the questionnaire. Do NOT author "Other" or "Type something." labels — reserved labels are rejected at runtime.`,
-	'Set multiSelect: true when multiple answers are valid. If you recommend a specific option, make it first and append "(Recommended)" to its label.',
-	'Do not stack multiple ask_user_question calls back-to-back — group all clarifying questions into one invocation.',
+	`Present the caller-supplied questions and collect the user's answers. The caller decides when to ask, how many questions to provide, and whether to continue with follow-up questions.`,
+	`Each question MUST have ${MIN_OPTIONS}-${MAX_OPTIONS} options. Every option requires a concise label (1-5 words) and a description. The user can type a custom answer via the automatically appended "Type something." row, or press Esc to abandon the questionnaire. Do NOT author "Other" or "Type something." labels — reserved labels are rejected at runtime.`,
+	'Set multiSelect: true when the caller permits multiple selections; otherwise use the default single-select behavior.',
 ];
 
 export default function (pi: ExtensionAPI): void {
@@ -48,17 +47,13 @@ export default function (pi: ExtensionAPI): void {
 		name: ASK_USER_QUESTION_TOOL_NAME,
 		label: 'Ask User Question',
 		description: [
-			'Ask the user one or more structured questions during execution. Use when you need to:',
-			'1. Gather user preferences or requirements',
-			'2. Clarify ambiguous instructions',
-			'3. Get decisions on implementation choices as you work',
-			'4. Offer choices about what direction to take',
+			"Present one or more caller-supplied structured questions and collect the user's answers.",
+			'This tool is an interaction primitive: the caller decides when to ask, how many questions to provide, and whether to ask follow-ups.',
 			'',
 			'Usage notes:',
 			'- Users type a custom answer via the auto-appended "Type something." row on every single-select question, or press Esc to cancel.',
 			'- Do NOT author "Other" or "Type something." labels yourself — reserved labels are rejected at runtime.',
-			'- Use multiSelect: true when multiple answers are valid.',
-			'- If you recommend a specific option, make it first and add "(Recommended)" to the label.',
+			'- Use multiSelect: true when multiple selections are permitted.',
 		].join('\n'),
 		promptSnippet: DEFAULT_PROMPT_SNIPPET,
 		promptGuidelines: DEFAULT_PROMPT_GUIDELINES,

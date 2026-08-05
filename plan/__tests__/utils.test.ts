@@ -97,6 +97,12 @@ describe("isReadOnlyCommand", () => {
 	it("accepts custom allowlist exact match", () => {
 		expect(isReadOnlyCommand("git stash", { exact: ["git stash"] })).toBe(true);
 	});
+
+	it("rejects command substitution and embedded shell execution", () => {
+		expect(isReadOnlyCommand("echo $(git status)")).toBe(false);
+		expect(isReadOnlyCommand("find . -exec sh -c 'cat {}' \\;" )).toBe(false);
+		expect(isReadOnlyCommand("awk 'BEGIN { system(\"id\") }' file")).toBe(false);
+	});
 });
 
 describe("isDestructiveCommand", () => {

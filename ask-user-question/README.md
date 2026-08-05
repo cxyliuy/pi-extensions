@@ -1,8 +1,8 @@
 # ask-user-question
 
-A structured questionnaire tool (`ask_user_question`) for [Pi Agent](https://github.com/earendil-works/pi-coding-agent). Ask the model's user 1–4 clarifying questions, each with 2–4 typed options plus an auto-appended free-text "Type something." row on every single-select question.
+A structured question presentation and answer-collection tool (`ask_user_question`) for [Pi Agent](https://github.com/earendil-works/pi-coding-agent). Present 1–4 caller-supplied questions, each with 2–4 typed options plus an auto-appended free-text "Type something." row on every single-select question. The caller (for example, Plan Mode or a skill) owns question design and follow-up strategy.
 
-**This is a 精简 fork of [`@juicesharp/rpiv-ask-user-question`](https://pi.dev/packages/@juicesharp/rpiv-ask-user-question) v2.0.0 (MIT, by juicesharp).** It is an independent, self-contained reimplementation — not a re-export — and diverges deliberately to stay lightweight and dependency-free for this repo's Plan Mode clarification gate.
+**This is a 精简 fork of [`@juicesharp/rpiv-ask-user-question`](https://pi.dev/packages/@juicesharp/rpiv-ask-user-question) v2.0.0 (MIT, by juicesharp).** It is an independent, self-contained reimplementation — not a re-export — and diverges deliberately to stay lightweight and dependency-free for this repo's question interaction layer.
 
 ## Why a fork
 
@@ -93,7 +93,7 @@ cd ~/.pi/agent/extensions/ask-user-question
 npx --yes vitest run        # 31 tests
 ```
 
-Manual: `/reload`, then in Plan Mode the agent can call `ask_user_question` during the clarification gate.
+Manual: `/reload`, then a caller such as Plan Mode or a skill can call `ask_user_question` to present its designed questions and collect answers.
 
 ## License
 

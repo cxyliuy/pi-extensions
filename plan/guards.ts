@@ -30,7 +30,7 @@ export function writeToolGuard(toolName: string): ToolGuardDecision | undefined 
  *
  * Read-only allowlisted commands pass through. Everything else is blocked:
  * - `destructive` severity hard-blocks (side effects, never confirmed).
- * - `unknown` severity may be approved via the read-only inspection prompt.
+ * - `unknown` severity is hard-blocked. Plan Mode is fail-closed.
  *
  * When tirith enrichment is enabled, blocked commands are additionally scanned
  * by `tirith check --json`. Tirith is enrichment-only and can only strengthen:
@@ -49,9 +49,9 @@ export function shellPlanGuard(
 	allowlist: CommandAllowlist = {},
 	tirith?: TirithConfig,
 ): ToolGuardDecision | undefined {
-	if (isReadOnlyCommand(command, allowlist)) return undefined;
-
 	const destructive = isDestructiveCommand(command);
+	// Destructive commands are never overridable by the manual allowlist.
+	if (!destructive && isReadOnlyCommand(command, allowlist)) return undefined;
 	const baseReason = destructive
 		? `Plan mode: this command has side effects and cannot run in Plan Mode.\nCommand: ${command}`
 		: `Plan mode: bash command is not in the read-only allowlist.\nCommand: ${command}`;

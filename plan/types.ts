@@ -4,7 +4,7 @@ export type PhaseName = 'plan' | 'execute' | 'normal';
 export type PlanModeStateName = 'normal' | 'planning' | 'approval' | 'executing';
 export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type TaskStatus = TodoItem['status'];
-export type ApprovalEffect = 'start_execution' | 'open_refinement' | 'open_editor' | 'dismiss_approval' | 'quit_plan';
+export type ApprovalEffect = 'start_execution' | 'start_new_session' | 'open_refinement' | 'open_editor' | 'dismiss_approval' | 'quit_plan';
 
 export type PlanEvent =
 	| { type: 'TOGGLE' }

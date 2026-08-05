@@ -8,7 +8,7 @@ export const NORMAL_MODE_TOOLS = ['read', 'bash', 'edit', 'write'];
 export const PLAN_MODE_TOOLS = ['read', 'bash', 'grep', 'find', 'ls', 'ask_user_question', PLAN_PROPOSAL_TOOL];
 export const EXECUTE_MODE_TOOLS = [...NORMAL_MODE_TOOLS, PLAN_TASK_UPDATE_TOOL];
 export const PLAN_MODE_WRITE_TOOLS = new Set(['edit', 'write', 'apply_patch']);
-export const APPROVAL_CHOICES = ['Execute plan', 'Refine plan', 'Edit plan', 'Quit plan'] as const;
+export const APPROVAL_CHOICES = ['Execute plan', 'Start new session', 'Refine plan', 'Edit plan', 'Quit plan'] as const;
 export const MAX_AUTO_CONTINUATIONS = 8;
 export const MAX_NO_PROGRESS_CONTINUATIONS = 2;
 
@@ -115,6 +115,9 @@ export function isPlanModeActive(mode: PlanModeStateName): boolean {
 export function transitionApproval(choice: string | undefined): ApprovalTransition {
 	if (choice === 'Execute plan') {
 		return { mode: 'executing', effect: 'start_execution' };
+	}
+	if (choice === 'Start new session') {
+		return { mode: 'approval', effect: 'start_new_session' };
 	}
 	if (choice === 'Refine plan') {
 		return { mode: 'approval', effect: 'open_refinement' };

@@ -16,6 +16,8 @@ describe("buildPlanModeContext", () => {
 		expect(context).toContain("执行, 继续, 应用, or 开始改");
 		expect(context).toContain("call propose_plan");
 		expect(context).toContain("Do not answer an execution request by only decomposing execution steps in plain text");
+		expect(context).toContain("For independent material decisions, you may provide multiple questions in one call");
+		expect(context).toContain("For dependent decisions, ask one question, wait for the answer");
 	});
 
 	it("preserves a pending proposal as the basis for execution requests", () => {

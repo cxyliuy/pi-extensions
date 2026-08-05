@@ -12,8 +12,8 @@
 
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { TextContent } from '@earendil-works/pi-ai';
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { Key, Text } from '@earendil-works/pi-tui';
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ReplacedSessionContext } from '@earendil-works/pi-coding-agent';
+import { Key, Markdown, Text } from '@earendil-works/pi-tui';
 import type {
 	PlanModeStateName,
 	PlanProposal,
@@ -319,6 +319,34 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		sendExecutionHandoff(state.todos[0]);
 	}
 
+	async function startNewSessionHandoff(ctx: ExtensionCommandContext): Promise<void> {
+		const currentSession = ctx.sessionManager.getSessionFile();
+		const plan = state.pendingPlan;
+		if (!currentSession || !plan) {
+			ctx.ui.notify(
+				!currentSession ? 'Cannot hand off: the current session is not persisted.' : 'Cannot hand off: no structured plan is available.',
+				'warning',
+			);
+			return;
+		}
+
+		const handoff = [
+			'Implement this approved plan in a new session.',
+			'',
+			formatApprovedPlanContext(plan),
+			'',
+			'Mark work complete only after the approved verification is run. Begin implementation directly; do not return to Plan Mode.',
+		].join('\n');
+		const result = await ctx.newSession({
+			parentSession: currentSession,
+			withSession: async (replacementCtx: ReplacedSessionContext) => {
+				replacementCtx.ui.setEditorText(handoff);
+				replacementCtx.ui.notify('Approved plan handed off. Review the draft and submit to begin.', 'info');
+			},
+		});
+		if (result.cancelled) ctx.ui.notify('New session handoff cancelled.', 'info');
+	}
+
 	/**
 	 * Show the approval UI. Called when entering the approval state.
 	 * Handles Execute/Refine/Edit/Dismiss/Quit choices through the centralized state machine.
@@ -368,6 +396,10 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 
 			if (approvalTransition.effect === 'start_execution') {
 				await startPlanExecution(ctx);
+				return;
+			}
+			if (approvalTransition.effect === 'start_new_session') {
+				await startNewSessionHandoff(ctx as ExtensionCommandContext);
 				return;
 			}
 			if (approvalTransition.effect === 'open_refinement') {
@@ -468,7 +500,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		promptSnippet: 'Submit a structured Plan Mode proposal for implementation or refactor requests.',
 		promptGuidelines: [
 			'Use propose_plan when Plan Mode needs an executable implementation, fix, refactor, or verification plan.',
-			'Before calling propose_plan, ask the user about any material decision that cannot be resolved from repository evidence.',
+			'Before calling propose_plan, resolve any material decision that cannot be inferred from repository evidence.',
+			'Use ask_user_question only as the interaction primitive: design the questions here, and decide whether to ask independent questions together or dependent questions one at a time.',
+			'For dependent decisions, wait for each answer before designing the next question; do not pre-generate later branch questions.',
 			'Put key code findings, constraints, tradeoffs, and execution-critical context in summary, assumptions, risks, verification, and files.',
 			'Use assumptions only for low-risk implementation defaults; do not use assumptions to bypass unclear user intent.',
 			'If no question was asked, explain in assumptions why no material clarification was needed.',
@@ -499,6 +533,36 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				details: { plan, todos: state.todos },
 				terminate: true,
 			};
+		},
+		renderShell: 'self',
+		renderCall() {
+			return new Text('', 0, 0);
+		},
+		renderResult({ content }, _options, theme) {
+			const text = (content ?? [])
+				.filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+				.map((block) => block.text)
+				.join('\n');
+			if (!text) return new Text('', 0, 0);
+			// Mirror the core's getMarkdownTheme (md* color keys on the shared Theme instance),
+			// so the proposal renders as proper markdown in the tool-result slot.
+			return new Markdown(text, 1, 0, {
+				heading: (t) => theme.fg('mdHeading', t),
+				link: (t) => theme.fg('mdLink', t),
+				linkUrl: (t) => theme.fg('mdLinkUrl', t),
+				code: (t) => theme.fg('mdCode', t),
+				codeBlock: (t) => theme.fg('mdCodeBlock', t),
+				codeBlockBorder: (t) => theme.fg('mdCodeBlockBorder', t),
+				quote: (t) => theme.fg('mdQuote', t),
+				quoteBorder: (t) => theme.fg('mdQuoteBorder', t),
+				hr: (t) => theme.fg('mdHr', t),
+				listBullet: (t) => theme.fg('mdListBullet', t),
+				bold: (t) => theme.bold(t),
+				italic: (t) => theme.italic(t),
+				underline: (t) => theme.underline(t),
+				strikethrough: (t) => theme.strikethrough(t),
+				highlightCode: (code) => code.split('\n').map((line) => theme.fg('mdCodeBlock', line)),
+			});
 		},
 	});
 
@@ -649,18 +713,6 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		const profile = getProfile(config, 'plan');
 		const shellDecision = shellPlanGuard(command, profile.planCommandAllow, config.tirith);
 		if (shellDecision) {
-			// Destructive commands are hard-rejected — no confirmation prompt.
-			if (shellDecision.severity === 'destructive' || !ctx.hasUI) {
-				return {
-					block: shellDecision.block,
-					reason: shellDecision.reason,
-				};
-			}
-			const approved = await ctx.ui.confirm(
-				'Run non-whitelisted Plan Mode command?',
-				`Plan Mode is read-only by default. This bash command is not in the built-in allowlist or your manual allowlist:\n\n${command}\n\nApprove only if this is an inspection command. Commands that may change local or external state belong in the proposal and should run only after execution approval.`,
-			);
-			if (approved) return;
 			return {
 				block: shellDecision.block,
 				reason: shellDecision.reason,
@@ -768,7 +820,10 @@ MANDATORY: You MUST call plan_task_update to report progress for every task:
 
 	pi.on('agent_end', async (_event, ctx) => {
 		if (state.mode === 'approval') {
-			showPlanProposal(state.pendingPlan);
+			// The proposal is rendered as the propose_plan tool result (visible during the turn).
+			// Do NOT call showPlanProposal() here: sendMessage() inside the agent_end handler
+			// runs while isStreaming is still true, so a display:true message is steer()-queued
+			// instead of rendered, and is later fed back to the LLM as a user turn.
 			await promptForPlanExecution(ctx, state.pendingPlan);
 			return;
 		}

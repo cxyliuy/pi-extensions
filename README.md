@@ -17,7 +17,8 @@ Official extension docs: https://pi.dev/docs/latest/extensions
 - `usage/` - Provider quota and balance queries for selected model providers.
 - `undo/` - Restore files changed by the last Pi edit/write tool turn.
 - `tooling/` - Always-on tool selection and git commit hygiene guidance that nudges agents toward `rg`, `fd`, `jq`, `yq`, `uvx`, `npx`, `httpie`, and Context7.
-- `ask-user-question/` - Structured `ask_user_question` tool (1–4 questions, 2–4 options each) for the Plan Mode clarification gate and general use. 精简 bilingual (zh/en) fork of `@juicesharp/rpiv-ask-user-question`, zero external deps.
+- `web/` - Web search and URL content fetching tools backed by Firecrawl, Exa, and native fetch.
+- `ask-user-question/` - Neutral `ask_user_question` interaction tool (1–4 caller-supplied questions, 2–4 options each) for Plan Mode, skills, and general use. Question design and follow-up strategy remain with the caller. 精简 bilingual (zh/en) fork of `@juicesharp/rpiv-ask-user-question`, zero external deps.
 - `rtk.ts` - RTK transparent bash proxy that rewrites supported commands through `rtk rewrite` for compact output.
 
 ## Usage
@@ -32,5 +33,6 @@ Official extension docs: https://pi.dev/docs/latest/extensions
 - Hatch or show a local buddy with `/buddy`, pet it with `/buddy pet`, or hide it with `/buddy off`.
 - Query selected provider quota or balance with `/usage`.
 - Restore the last Pi edit/write changes with `/undo` or inspect the current snapshot with `/undo show`.
+- Use `web_search` and `fetch_content` from the agent tools after configuring `FIRECRAWL_API_KEY`, `EXA_API_KEY`, or `~/.pi/agent/web.json`.
 
-See `plan/README.md` for detailed Plan Mode behavior and command allowlist notes, `review/README.md` for review command behavior, `goal/README.md` for goal tracking behavior, `loop/README.md` for scheduled loop behavior, `init/README.md` for instruction initialization behavior, `buddy/README.md` for buddy command behavior, `usage/README.md` for quota query behavior, and `undo/README.md` for undo behavior.
+See `plan/README.md` for detailed Plan Mode behavior and command allowlist notes, `review/README.md` for review command behavior, `goal/README.md` for goal tracking behavior, `loop/README.md` for scheduled loop behavior, `init/README.md` for instruction initialization behavior, `buddy/README.md` for buddy command behavior, `usage/README.md` for quota query behavior, `undo/README.md` for undo behavior, and `web/README.md` for web provider configuration.

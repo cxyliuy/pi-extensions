@@ -21,7 +21,7 @@ States: `normal | planning | approval | executing`
 
 - **Centralized state machine**: All mode transitions go through `transition(mode, event) → { mode, actions[] }`
 - **Broad planning tools**: Keeps configured read-only plan tools available and always adds `propose_plan`
-- **Read-only bash allowlist**: Auto-allows known read-only commands, asks for confirmation on non-whitelisted commands, and supports manual exact/prefix extensions
+- **Fail-closed bash allowlist**: Auto-allows only known read-only commands and blocks every non-whitelisted command; supports manual exact/prefix extensions for reviewed inspection commands
 - **Write-tool hard block**: Blocks edit, write, and apply_patch tool calls while Plan Mode is active
 - **Structured plan approval**: Renders the complete `propose_plan` result before opening the harness approval UI
 - **Proposal refinement**: Accepts additional context and asks the agent for one complete revised proposal without adding another runtime state
@@ -102,8 +102,8 @@ User-provided fields in `plan.json` are shallow-merged over these defaults. Only
 
 1. Enable plan mode with `/plan` or `--plan` flag
 2. Ask the agent to analyze code and create a plan
-3. For implementation, fix, refactor, or "execute/proceed/continue/apply changes" requests, the agent applies a clarification gate: ask for material user decisions that repo context cannot answer, then call `propose_plan` with `title`, `summary`, ordered `steps`, optional `assumptions`, optional `verification`, optional `risks`, optional `files`, and optional `references` (reference projects/issues/docs used to inform the plan, display only). The `summary` should capture key code findings, constraints, and implementation judgment needed during execution.
-4. Review the complete proposal displayed directly in the TUI, then choose `Execute plan`, `Refine plan`, `Edit plan`, or `Quit plan`. `Refine plan` accepts additional context and requests a complete revised proposal. Execution starts automatically after approval; saving an edited plan also starts execution with the edited steps.
+3. For implementation, fix, refactor, or "execute/proceed/continue/apply changes" requests, the agent applies a clarification gate: resolve material user decisions that repo context cannot answer, then call `propose_plan` with `title`, `summary`, ordered `steps`, optional `assumptions`, optional `verification`, optional `risks`, optional `files`, and optional `references` (reference projects/issues/docs used to inform the plan, display only). Design questions in Plan Mode and use `ask_user_question` only to present them and collect answers. Group independent decisions when useful; for dependent decisions, ask one question, wait for the answer, and design the next question from it. The `summary` should capture key code findings, constraints, and implementation judgment needed during execution.
+4. Review the complete proposal displayed directly in the TUI, then choose `Execute plan`, `Start new session`, `Refine plan`, `Edit plan`, or `Quit plan`. `Start new session` opens a child session linked to the current session and places only the approved structured plan in its editor; it does not copy the planning transcript. `Refine plan` accepts additional context and requests a complete revised proposal. Execution starts automatically after approval; saving an edited plan also starts execution with the edited steps.
 5. During execution, the agent updates task state with `plan_task_update` (`pending`, `in_progress`, `completed`, or `blocked`).
 6. If more steps remain, Plan Mode automatically sends hidden continuation follow-ups. If a turn forgets to report task progress, Plan Mode retries twice with a stronger hidden reminder before marking execution blocked.
 7. The status bar shows completion count, and the progress widget shows only the current or next step.
@@ -151,16 +151,17 @@ When a phase is entered (`togglePlanMode`, executing plan, session resume), the 
 
 If the configured `provider`/`model` pair is not found in the registry, a warning notification is shown and the current model is kept.
 
-Plan phase filters `edit`, `write`, `apply_patch`, and namespaced variants from the configured tool list, then always adds `propose_plan` so structured approval remains available. Write-tool guards remain as defense in depth. Bash commands use a read-only allowlist, optional manual allowlist, and user confirmation for non-whitelisted commands. Execute phase always includes `plan_task_update` so progress remains structured, and normal phase removes Plan-internal tools even if they appear in a restored snapshot or explicit normal profile.
+- Plan phase filters `edit`, `write`, `apply_patch`, and namespaced variants from the configured tool list, then always adds `propose_plan` so structured approval remains available. Write-tool guards remain as defense in depth. Bash commands use a read-only allowlist and optional manual allowlist; every non-whitelisted command is blocked. Execute phase always includes `plan_task_update` so progress remains structured, and normal phase removes Plan-internal tools even if they appear in a restored snapshot or explicit normal profile.
 
 ### Plan Mode
 - Configured read-only plan tools remain available, with write tools filtered and `propose_plan` always added
 - Plan Mode instructions tell the agent to default to read-only inspection and move uncertain checks into the proposal
 - `edit`, `write`, and `apply_patch` tool calls are hard-blocked
-- Built-in read-only bash commands auto-run; non-whitelisted bash commands ask for confirmation in UI mode and block in non-UI mode
+- Built-in read-only bash commands auto-run; non-whitelisted bash commands block in both UI and non-UI modes
 - Repeated safe commands can be added to `profiles.plan.planCommandAllow`
 - Requests to implement, edit, execute, continue, proceed, or apply changes are treated as requests to submit an executable proposal with `propose_plan`
-- Agent asks clarifying questions when material user decisions cannot be inferred from local context
+- Agent designs clarifying questions when material user decisions cannot be inferred from local context and uses `ask_user_question` only for presentation and answer collection
+- Independent decisions may be grouped in one call; dependent decisions are asked serially, with each follow-up designed after the prior answer
 - If it does not ask, `assumptions` should explain low-risk defaults and why no material clarification was needed
 - Agent calls `propose_plan` without making changes
 - Agent never asks the user to exit Plan Mode to make changes; approval performs the execution handoff
@@ -168,6 +169,7 @@ Plan phase filters `edit`, `write`, `apply_patch`, and namespaced variants from 
 - Refinement carries the current proposal and additional user context forward and requires a complete revised proposal
 - Blocked write commands explicitly instruct the agent to stop retrying write-capable shell commands and produce a plan instead
 - The approval UI provides the user-controlled handoff into execution mode
+- `Start new session` creates a child session with the approved plan as an editable draft and preserves the source planning session
 - Cancelling the approval/refinement/edit UI keeps the pending plan instead of clearing it
 - `/plan` during execution clears the active execution state and exits Plan Mode
 
@@ -202,9 +204,7 @@ Plan Mode uses a simple exact/prefix allowlist model instead of trying to detect
 - Simple chains and pipelines using `&&`, `||`, `|`, or `;` are allowed only when every segment is allowlisted.
 - Redirects are not auto-allowed, except stderr suppression such as `2>/dev/null`; backticks and `$()` are not auto-allowed.
 - Dependency installs, Git mutations, service/process/database commands, and unknown commands are not auto-allowed unless manually added.
-- In UI mode, non-whitelisted bash commands ask for confirmation only when the agent believes they are read-only inspection commands.
-- Commands that may change local or external state should be moved into the proposal and run only after execution approval.
-- In non-UI mode, non-whitelisted bash commands are blocked and should be moved into `propose_plan.verification`.
+- All non-whitelisted bash commands are blocked in both UI and non-UI modes. Move them into `propose_plan.verification` and run them only after execution approval.
 
 Add recurring safe project-specific commands to `profiles.plan.planCommandAllow` in `~/.pi/agent/plan.json`. Use `exact` for full command matches and `prefixes` for command starts such as `npm --prefix ../npm list`. Use `profiles.plan.instructions` for behavior guidance, and `planCommandAllow` only for commands that should auto-run in Plan Mode. `/undo` remains limited to approved `edit`/`write` file changes and does not roll back shell mutations.
 
